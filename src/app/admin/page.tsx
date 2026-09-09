@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listarSolicitudes, etiquetaTipo } from "@/lib/solicitudes";
-import { login, estaAutenticado, cerrarSesion } from "./actions";
+import { login, cerrarSesion } from "./actions";
+import { estaAutenticado } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 

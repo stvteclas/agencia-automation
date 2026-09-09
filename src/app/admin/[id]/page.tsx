@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { obtenerSolicitud, etiquetaTipo } from "@/lib/solicitudes";
-import { estaAutenticado, marcarResuelta, marcarEnProceso } from "../actions";
+import { marcarResuelta, marcarEnProceso } from "../actions";
+import { estaAutenticado } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 

@@ -3,24 +3,19 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolverSolicitud, actualizarEstado } from "@/lib/solicitudes";
-
-const COOKIE = "admin_key";
+import { ADMIN_COOKIE } from "@/lib/admin-auth";
 
 export async function login(formData: FormData) {
   const clave = String(formData.get("clave") ?? "");
   if (clave && clave === process.env.ADMIN_API_KEY) {
-    cookies().set(COOKIE, clave, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
+    cookies().set(ADMIN_COOKIE, clave, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
   }
   redirect("/admin");
 }
 
 export async function cerrarSesion() {
-  cookies().delete(COOKIE);
+  cookies().delete(ADMIN_COOKIE);
   redirect("/admin");
-}
-
-export function estaAutenticado() {
-  return cookies().get(COOKIE)?.value === process.env.ADMIN_API_KEY;
 }
 
 export async function marcarEnProceso(id: string) {
