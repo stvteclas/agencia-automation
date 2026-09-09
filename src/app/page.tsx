@@ -1,11 +1,18 @@
 export default function Home() {
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 600, margin: "80px auto" }}>
-      <h1>Bot de atención de la agencia</h1>
-      <p>Esta app no tiene una página pública propia. El bot funciona por WhatsApp.</p>
-      <p>
-        Panel para revisar solicitudes: <a href="/admin">/admin</a>
-      </p>
+    <main className="page page--narrow">
+      <div className="card">
+        <div className="brand">
+          <span className="brand-dot" />
+          Bot de atención
+        </div>
+        <p className="subtitle" style={{ marginBottom: 20 }}>
+          Esta app no tiene página pública propia — el bot funciona por WhatsApp.
+        </p>
+        <a className="btn" href="/admin" style={{ display: "inline-block" }}>
+          Ir al panel →
+        </a>
+      </div>
     </main>
   );
 }

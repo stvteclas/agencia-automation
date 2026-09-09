@@ -7,29 +7,36 @@ export const dynamic = "force-dynamic";
 
 function LoginForm() {
   return (
-    <main style={{ maxWidth: 360, margin: "80px auto", fontFamily: "system-ui, sans-serif" }}>
-      <h1 style={{ fontSize: 20 }}>Panel de atención — Agencia</h1>
-      <form action={login} style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
-        <input
-          type="password"
-          name="clave"
-          placeholder="Clave de administración"
-          style={{ padding: 8, fontSize: 14 }}
-          autoFocus
-        />
-        <button type="submit" style={{ padding: 8, fontSize: 14, cursor: "pointer" }}>
-          Entrar
-        </button>
-      </form>
+    <main className="page page--narrow">
+      <div className="card">
+        <div className="brand">
+          <span className="brand-dot" />
+          Panel de atención
+        </div>
+        <p className="subtitle" style={{ marginBottom: 20 }}>Agencia de automatización</p>
+        <form action={login}>
+          <div className="field">
+            <label>Clave de administración</label>
+            <input type="password" name="clave" placeholder="••••••••••••" autoFocus />
+          </div>
+          <button type="submit" className="btn" style={{ width: "100%" }}>
+            Entrar
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
 
-const COLOR_ESTADO: Record<string, string> = {
-  NUEVA: "#c0392b",
-  EN_PROCESO: "#d68910",
-  RESUELTA: "#1e8449",
+const ETIQUETA_ESTADO: Record<string, string> = {
+  NUEVA: "Nueva",
+  EN_PROCESO: "En proceso",
+  RESUELTA: "Resuelta",
 };
+
+function Badge({ estado }: { estado: string }) {
+  return <span className={`badge badge-${estado.toLowerCase()}`}>{ETIQUETA_ESTADO[estado] ?? estado}</span>;
+}
 
 export default async function AdminPage({ searchParams }: { searchParams: { estado?: string } }) {
   if (!estaAutenticado()) return <LoginForm />;
@@ -40,53 +47,55 @@ export default async function AdminPage({ searchParams }: { searchParams: { esta
     : (await Promise.all([listarSolicitudes("NUEVA"), listarSolicitudes("EN_PROCESO")])).flat();
 
   return (
-    <main style={{ maxWidth: 900, margin: "40px auto", fontFamily: "system-ui, sans-serif", padding: "0 16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ fontSize: 22 }}>Solicitudes del bot de atención</h1>
+    <main className="page">
+      <div className="topbar">
+        <div>
+          <div className="brand">
+            <span className="brand-dot" />
+            Panel de atención
+          </div>
+          <h1>Solicitudes</h1>
+        </div>
         <form action={cerrarSesion}>
-          <button type="submit" style={{ fontSize: 12, color: "#666", background: "none", border: "none", cursor: "pointer" }}>
+          <button type="submit" className="btn btn-ghost">
             Cerrar sesión
           </button>
         </form>
       </div>
 
-      <div style={{ margin: "12px 0", display: "flex", gap: 8, fontSize: 13 }}>
-        <Link href="/admin">Pendientes</Link>
-        <Link href="/admin?estado=RESUELTA">Resueltas</Link>
+      <div className="tabs">
+        <Link href="/admin" className={`tab ${!filtro ? "tab-active" : ""}`}>
+          Pendientes
+        </Link>
+        <Link href="/admin?estado=RESUELTA" className={`tab ${filtro === "RESUELTA" ? "tab-active" : ""}`}>
+          Resueltas
+        </Link>
       </div>
 
-      {solicitudes.length === 0 && <p style={{ color: "#666" }}>No hay solicitudes acá.</p>}
-
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th style={{ padding: "6px 8px" }}>Cuándo</th>
-            <th style={{ padding: "6px 8px" }}>Tipo</th>
-            <th style={{ padding: "6px 8px" }}>Teléfono</th>
-            <th style={{ padding: "6px 8px" }}>Resumen</th>
-            <th style={{ padding: "6px 8px" }}>Estado</th>
-          </tr>
-        </thead>
-        <tbody>
+      {solicitudes.length === 0 ? (
+        <div className="card empty">No hay solicitudes acá.</div>
+      ) : (
+        <div className="list">
           {solicitudes.map((s) => (
-            <tr key={s.id} style={{ borderBottom: "1px solid #eee" }}>
-              <td style={{ padding: "6px 8px", whiteSpace: "nowrap", color: "#666" }}>
-                {new Date(s.creadoEn).toLocaleString("es-AR")}
-              </td>
-              <td style={{ padding: "6px 8px" }}>{etiquetaTipo(s.tipo)}</td>
-              <td style={{ padding: "6px 8px" }}>{s.telefono}</td>
-              <td style={{ padding: "6px 8px" }}>
-                <Link href={`/admin/${s.id}`}>
-                  {s.tipo === "ALTA_CLIENTE"
-                    ? (s.respuestas as any)?.nombre_negocio ?? "(ver detalle)"
-                    : `${s.aplicativo ?? "-"} — ${(s.descripcion ?? "").slice(0, 60)}`}
-                </Link>
-              </td>
-              <td style={{ padding: "6px 8px", color: COLOR_ESTADO[s.estado], fontWeight: 600 }}>{s.estado}</td>
-            </tr>
+            <Link key={s.id} href={`/admin/${s.id}`} className="row">
+              <div className="row-top">
+                <div>
+                  <span className="badge-tipo">{etiquetaTipo(s.tipo)}</span>
+                  <div className="row-title" style={{ marginTop: 6 }}>
+                    {s.tipo === "ALTA_CLIENTE"
+                      ? (s.respuestas as any)?.nombre_negocio ?? "(sin nombre)"
+                      : `${s.aplicativo ?? "Sin aplicativo"} — ${(s.descripcion ?? "").slice(0, 70)}`}
+                  </div>
+                  <div className="row-meta">
+                    {s.telefono} · {new Date(s.creadoEn).toLocaleString("es-AR")}
+                  </div>
+                </div>
+                <Badge estado={s.estado} />
+              </div>
+            </Link>
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
     </main>
   );
 }

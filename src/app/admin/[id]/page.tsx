@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { obtenerSolicitud, etiquetaTipo } from "@/lib/solicitudes";
@@ -34,12 +35,28 @@ const ETIQUETAS_PREGUNTAS: Record<string, string> = {
   detalles_adicionales: "Detalles adicionales",
 };
 
+const ETIQUETA_ESTADO: Record<string, string> = {
+  NUEVA: "Nueva",
+  EN_PROCESO: "En proceso",
+  RESUELTA: "Resuelta",
+};
+
+function Badge({ estado }: { estado: string }) {
+  return <span className={`badge badge-${estado.toLowerCase()}`}>{ETIQUETA_ESTADO[estado] ?? estado}</span>;
+}
+
 function esUrlDeImagen(v: string) {
   return /^https?:\/\//.test(v) && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(v);
 }
 
 export default async function DetalleSolicitud({ params }: { params: { id: string } }) {
-  if (!estaAutenticado()) return <p style={{ fontFamily: "system-ui" }}>No autorizado. Entrá por /admin.</p>;
+  if (!estaAutenticado()) {
+    return (
+      <main className="page page--narrow">
+        <div className="card">No autorizado. Entrá por <Link href="/admin">/admin</Link>.</div>
+      </main>
+    );
+  }
 
   const solicitud = await obtenerSolicitud(params.id);
   if (!solicitud) return notFound();
@@ -48,87 +65,90 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
   const marcarEnProcesoConId = marcarEnProceso.bind(null, solicitud.id);
 
   return (
-    <main style={{ maxWidth: 700, margin: "40px auto", fontFamily: "system-ui, sans-serif", padding: "0 16px" }}>
-      <Link href="/admin">← Volver</Link>
-      <h1 style={{ fontSize: 20, marginTop: 8 }}>
-        {etiquetaTipo(solicitud.tipo)} — {solicitud.telefono}
-      </h1>
-      <p style={{ color: "#666", fontSize: 13 }}>
-        Creada el {new Date(solicitud.creadoEn).toLocaleString("es-AR")} · Estado actual: <b>{solicitud.estado}</b>
-      </p>
+    <main className="page">
+      <Link href="/admin" className="btn-ghost" style={{ display: "inline-block", marginBottom: 16, padding: "4px 0" }}>
+        ← Volver
+      </Link>
 
-      {solicitud.tipo === "ALTA_CLIENTE" ? (
-        <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse", marginTop: 16 }}>
-          <tbody>
+      <div className="card">
+        <div className="topbar" style={{ marginBottom: 8 }}>
+          <div>
+            <span className="badge-tipo">{etiquetaTipo(solicitud.tipo)}</span>
+            <h1 style={{ marginTop: 8 }}>{solicitud.telefono}</h1>
+            <p className="subtitle">Creada el {new Date(solicitud.creadoEn).toLocaleString("es-AR")}</p>
+          </div>
+          <Badge estado={solicitud.estado} />
+        </div>
+
+        <hr className="sep" />
+
+        {solicitud.tipo === "ALTA_CLIENTE" ? (
+          <dl className="kv">
             {Object.entries((solicitud.respuestas as Record<string, string>) ?? {}).map(([id, valor]) => (
-              <tr key={id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ padding: "6px 8px", color: "#666", verticalAlign: "top", width: 220 }}>
-                  {ETIQUETAS_PREGUNTAS[id] ?? id}
-                </td>
-                <td style={{ padding: "6px 8px" }}>
+              <Fragment key={id}>
+                <dt>{ETIQUETAS_PREGUNTAS[id] ?? id}</dt>
+                <dd>
                   {esUrlDeImagen(valor) ? (
                     <a href={valor} target="_blank" rel="noreferrer">
-                      <img src={valor} alt={id} style={{ maxWidth: 160, display: "block" }} />
+                      <img src={valor} alt={id} />
                     </a>
                   ) : (
                     valor
                   )}
-                </td>
-              </tr>
+                </dd>
+              </Fragment>
             ))}
-          </tbody>
-        </table>
-      ) : (
-        <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse", marginTop: 16 }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: "6px 8px", color: "#666", width: 140 }}>Nombre</td>
-              <td style={{ padding: "6px 8px" }}>{solicitud.nombre}</td>
-            </tr>
-            <tr>
-              <td style={{ padding: "6px 8px", color: "#666" }}>Aplicativo</td>
-              <td style={{ padding: "6px 8px" }}>{solicitud.aplicativo}</td>
-            </tr>
-            <tr>
-              <td style={{ padding: "6px 8px", color: "#666" }}>Descripción</td>
-              <td style={{ padding: "6px 8px", whiteSpace: "pre-wrap" }}>{solicitud.descripcion}</td>
-            </tr>
-          </tbody>
-        </table>
-      )}
+          </dl>
+        ) : (
+          <dl className="kv">
+            <dt>Nombre</dt>
+            <dd>{solicitud.nombre}</dd>
+            <dt>Aplicativo</dt>
+            <dd>{solicitud.aplicativo}</dd>
+            <dt>Descripción</dt>
+            <dd>{solicitud.descripcion}</dd>
+          </dl>
+        )}
 
-      {solicitud.estado === "RESUELTA" ? (
-        <div style={{ marginTop: 24, padding: 12, background: "#eafaf1", borderRadius: 6 }}>
-          <b>Resuelta</b> el {solicitud.resueltoEn ? new Date(solicitud.resueltoEn).toLocaleString("es-AR") : ""}
-          {solicitud.detalleResolucion && (
-            <p style={{ marginTop: 8 }}>
-              Aviso mandado al cliente: <i>{solicitud.detalleResolucion}</i>
-            </p>
-          )}
-        </div>
-      ) : (
-        <div style={{ marginTop: 24 }}>
-          {solicitud.estado === "NUEVA" && (
-            <form action={marcarEnProcesoConId} style={{ marginBottom: 12 }}>
-              <button type="submit" style={{ padding: "6px 12px", cursor: "pointer" }}>
-                Marcar en proceso
+        {solicitud.estado === "RESUELTA" ? (
+          <div className="resolved-banner">
+            <strong>Resuelta</strong>
+            {solicitud.resueltoEn && ` el ${new Date(solicitud.resueltoEn).toLocaleString("es-AR")}`}
+            {solicitud.detalleResolucion && (
+              <p style={{ marginTop: 8, marginBottom: 0 }}>
+                Aviso mandado al cliente: <i>{solicitud.detalleResolucion}</i>
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <hr className="sep" />
+            {solicitud.estado === "NUEVA" && (
+              <form action={marcarEnProcesoConId} style={{ marginBottom: 16 }}>
+                <button type="submit" className="btn btn-outline">
+                  Marcar en proceso
+                </button>
+              </form>
+            )}
+
+            <form action={marcarResueltaConId}>
+              <div className="field">
+                <label>
+                  Detalle de la reparación <span className="field-hint">— si lo cargás, se le manda por WhatsApp al cliente tal cual</span>
+                </label>
+                <textarea name="detalle" rows={4} />
+              </div>
+              <div className="field">
+                <label>Nota interna <span className="field-hint">— no la ve el cliente</span></label>
+                <input name="nota" />
+              </div>
+              <button type="submit" className="btn">
+                Marcar como resuelta
               </button>
             </form>
-          )}
-
-          <form action={marcarResueltaConId} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label style={{ fontSize: 13, color: "#666" }}>
-              Detalle de la reparación (si lo cargás, se le manda por WhatsApp al cliente tal cual)
-            </label>
-            <textarea name="detalle" rows={4} style={{ padding: 8, fontSize: 14 }} />
-            <label style={{ fontSize: 13, color: "#666" }}>Nota interna (no la ve el cliente)</label>
-            <input name="nota" style={{ padding: 8, fontSize: 14 }} />
-            <button type="submit" style={{ padding: "8px 12px", cursor: "pointer", alignSelf: "start" }}>
-              Marcar como resuelta
-            </button>
-          </form>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </main>
   );
 }
