@@ -1,0 +1,28 @@
+{
+  "name": "bot-atencion-agencia",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "5.18.0",
+    "@vercel/blob": "^0.27.1",
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "prisma": "5.18.0",
+    "typescript": "5.5.4"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  }
+}

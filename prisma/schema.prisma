@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Estado de la conversación de WhatsApp en curso para un teléfono.
+// Vive solo mientras dura el intercambio; una vez que se genera la
+// Solicitud, el contexto ya no hace falta pero se deja para poder
+// retomar si el usuario escribe de nuevo más tarde.
+model Conversacion {
+  id            String   @id @default(cuid())
+  telefono      String   @unique
+  paso          String // ver src/lib/conversation.ts: nombres de los pasos
+  contextoJson  Json     @default("{}")
+  actualizadoEn DateTime @updatedAt
+  creadoEn      DateTime @default(now())
+}
+
+// Cliente ya dado de alta (por el bot o cargado a mano por Pablo). Si un
+// teléfono conocido escribe, el bot ya sabe que es cliente y de qué
+// aplicativo(s) es dueño — no vuelve a preguntar nombre ni aplicativo en
+// cada consulta.
+model Cliente {
+  id          String   @id @default(cuid())
+  telefono    String   @unique
+  nombre      String
+  // Nombres de los aplicativos/sistemas que tiene ese cliente (ej. "Bot de
+  // turnos", "Redes sociales"). Se cargan acá a mano (o se completan solos)
+  // una vez que el aplicativo está en producción — al momento del alta
+  // todavía no existen.
+  aplicativos String[] @default([])
+  notas       String?
+  creadoEn    DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+}
+
+enum TipoSolicitud {
+  ALTA_CLIENTE
+  INCIDENCIA
+  TAREA_NUEVA
+  MODIFICACION
+}
+
+enum EstadoSolicitud {
+  NUEVA
+  EN_PROCESO
+  RESUELTA
+}
+
+// Todo lo que entra por el bot termina acá: un cliente nuevo pidiendo
+// alta, o un cliente existente reportando una incidencia / pidiendo una
+// tarea nueva / pidiendo una modificación. La revisión diaria de la
+// agencia lee esta tabla (vía /api/admin/solicitudes) en vez de leer
+// Google Forms para estos dos casos.
+model Solicitud {
+  id           String          @id @default(cuid())
+  tipo         TipoSolicitud
+  estado       EstadoSolicitud @default(NUEVA)
+  telefono     String
+  nombre       String?
+  aplicativo   String? // sobre qué app/servicio es (incidencia, tarea, modificación)
+  descripcion  String? // texto libre: problema, pedido, etc.
+  // Para ALTA_CLIENTE: todas las respuestas del cuestionario, una clave
+  // por pregunta (ver src/lib/preguntas-alta-cliente.ts para los ids).
+  respuestas   Json?
+  notaInterna  String? // para que Pablo deje comentarios sin tocar el resto
+  // Cuando la Solicitud pasa a RESUELTA con este campo cargado, el bot le
+  // manda este texto al cliente por WhatsApp automáticamente (ver
+  // PATCH /api/admin/solicitudes/[id]).
+  detalleResolucion String?
+  resueltoEn   DateTime?
+  creadoEn     DateTime        @default(now())
+  actualizadoEn DateTime       @updatedAt
+
+  @@index([estado])
+  @@index([tipo])
+}
