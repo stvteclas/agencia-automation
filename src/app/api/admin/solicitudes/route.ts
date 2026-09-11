@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { listarSolicitudes } from "@/lib/solicitudes";
 import type { EstadoSolicitud } from "@prisma/client";
 
+// Acepta la clave por header (`x-admin-key`, uso normal de API) o por query
+// string (`?key=...`), porque las rutinas programadas de revisión diaria a
+// veces solo pueden navegar a una URL con el navegador vinculado a la PC de
+// Pablo (sin poder mandar headers custom) — mismo patrón que ya usan los
+// webhooks de Make de cada cliente.
 function autorizado(req: NextRequest) {
-  return req.headers.get("x-admin-key") === process.env.ADMIN_API_KEY;
+  const clave = process.env.ADMIN_API_KEY;
+  if (!clave) return false;
+  return req.headers.get("x-admin-key") === clave || req.nextUrl.searchParams.get("key") === clave;
 }
 
 // GET /api/admin/solicitudes?estado=NUEVA&telefono=5493543318665

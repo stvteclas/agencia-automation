@@ -14,9 +14,15 @@ export function etiquetaTipo(tipo: TipoSolicitud) {
   return ETIQUETA_TIPO[tipo];
 }
 
-export async function listarSolicitudes(estado?: EstadoSolicitud) {
+// `telefono` filtra por el teléfono exacto que originó la Solicitud — lo usa
+// la revisión diaria de cada cliente para traer solo lo suyo (ver
+// GET /api/admin/solicitudes en route.ts).
+export async function listarSolicitudes(estado?: EstadoSolicitud, telefono?: string) {
   return prisma.solicitud.findMany({
-    where: estado ? { estado } : undefined,
+    where: {
+      ...(estado ? { estado } : {}),
+      ...(telefono ? { telefono } : {}),
+    },
     orderBy: { creadoEn: "desc" },
   });
 }
