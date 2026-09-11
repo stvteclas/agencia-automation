@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { sendWhatsappText } from "./whatsapp";
 import { descargarImagenDeWhatsapp, guardarLogoEnBlob } from "./whatsapp-media";
-import { crearSolicitud } from "./solicitudes";
+import { crearSolicitud, listarSolicitudes, etiquetaTipo } from "./solicitudes";
 import { buscarClientePorTelefono, crearOActualizarCliente, agregarAplicativoSiNoExiste } from "./clientes";
 import { PREGUNTAS_ALTA_CLIENTE, type Respuestas } from "./preguntas-alta-cliente";
 import type { TipoSolicitud } from "@prisma/client";
@@ -124,10 +124,47 @@ async function pedirDescripcion(telefono: string, contexto: Contexto) {
   );
 }
 
+// Le permite al dueño (OWNER_WHATSAPP) pedir por WhatsApp, en cualquier
+// momento, un resumen de lo que está pendiente — sin pasar por el flujo de
+// cliente ni tocar su Conversacion. Palabras como "pendiente(s)" o "pedido(s)"
+// disparan el resumen (ej. "mostrame el pedido", "qué tengo pendiente").
+function esComandoDePendientes(texto: string) {
+  const t = texto.trim().toLowerCase();
+  return t.includes("pendiente") || t.includes("pedido");
+}
+
+async function responderPendientesAlDueño(telefono: string) {
+  const todas = await listarSolicitudes();
+  const pendientes = todas.filter((s) => s.estado !== "RESUELTA").slice(0, 10);
+
+  if (pendientes.length === 0) {
+    await sendWhatsappText(telefono, "✅ No tenés nada pendiente por ahora.");
+    return;
+  }
+
+  const lineas = pendientes.map((s, i) => {
+    const respuestas = s.respuestas as Respuestas | null;
+    const quien = s.tipo === "ALTA_CLIENTE" ? respuestas?.nombre_negocio ?? s.telefono : s.nombre ?? s.telefono;
+    const fecha = s.creadoEn.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+    const estado = s.estado === "EN_PROCESO" ? "en proceso" : "nueva";
+    return `${i + 1}) [${etiquetaTipo(s.tipo)}] ${quien} — ${fecha} (${estado})`;
+  });
+
+  await sendWhatsappText(
+    telefono,
+    `📋 Tenés ${pendientes.length} pendiente(s):\n\n${lineas.join("\n")}\n\nEntrá a /admin para ver el detalle completo.`,
+  );
+}
+
 // Punto de entrada para un mensaje de TEXTO entrante. `imagenUrl`, cuando la
 // pregunta actual es de tipo "imagen" y este mensaje en particular es una
 // imagen, ya viene resuelta a una URL de Blob (ver route.ts).
 export async function manejarMensajeEntrante(telefono: string, texto: string, imagenUrl?: string) {
+  if (telefono === process.env.OWNER_WHATSAPP && esComandoDePendientes(texto)) {
+    await responderPendientesAlDueño(telefono);
+    return;
+  }
+
   const conversacion = await obtenerOCrearConversacion(telefono);
   const contexto = (conversacion.contextoJson as Contexto) ?? {};
   const paso = conversacion.paso as Paso;
