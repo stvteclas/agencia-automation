@@ -57,7 +57,24 @@ export async function crearSolicitud(datos: {
     `Entró una solicitud nueva por el bot de WhatsApp.\n\nTipo: ${etiquetaTipo(datos.tipo)}\nTeléfono: ${datos.telefono}\n\n${resumen}\n\nRevisala en el panel /admin o con GET /api/admin/solicitudes.`,
   );
 
+  await notifyOwnerByWhatsapp(
+    `📌 Nuevo — ${etiquetaTipo(datos.tipo)}\nTel: ${datos.telefono}\n\n${resumen}\n\nEntrá al panel /admin para verla completa.`,
+  );
+
   return solicitud;
+}
+
+// Avisa al jefe (Pablo) por WhatsApp cuando entra algo para revisar/reparar.
+// Usa el mismo número/token del bot para mandarse el mensaje a sí mismo a un
+// número distinto (OWNER_WHATSAPP). Si no está configurado, no hace nada
+// (igual que notifyOwnerByEmail cuando faltan sus variables).
+async function notifyOwnerByWhatsapp(texto: string) {
+  const ownerPhone = process.env.OWNER_WHATSAPP;
+  if (!ownerPhone) {
+    console.error("Falta OWNER_WHATSAPP en el .env — no se pudo avisar por WhatsApp al jefe");
+    return;
+  }
+  await sendWhatsappText(ownerPhone, texto);
 }
 
 // Marca una Solicitud como resuelta y, si hay detalle, le avisa al cliente
