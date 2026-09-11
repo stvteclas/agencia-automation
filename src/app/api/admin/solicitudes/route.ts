@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listarSolicitudes } from "@/lib/solicitudes";
-import type { EstadoSolicitud } from "@prisma/client";
+import type { EstadoSolicitud, TipoSolicitud } from "@prisma/client";
 
 // Acepta la clave por header (`x-admin-key`, uso normal de API) o por query
 // string (`?key=...`), porque las rutinas programadas de revisión diaria a
@@ -18,11 +18,17 @@ function autorizado(req: NextRequest) {
 // pendiente de ESE cliente en vez de tener que leer un Google Form. El
 // filtro `telefono` es opcional — sin él, devuelve de todos los clientes
 // (uso del panel /admin y de la revisión general de la agencia).
+//
+// Para procesar aprobaciones de publicación resueltas y sin aplicar todavía
+// a la planilla: ?tipo=APROBACION_PUBLICACION&estado=RESUELTA&aplicado=false
 export async function GET(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const estado = req.nextUrl.searchParams.get("estado") as EstadoSolicitud | null;
   const telefono = req.nextUrl.searchParams.get("telefono");
-  const solicitudes = await listarSolicitudes(estado ?? undefined, telefono ?? undefined);
+  const tipo = req.nextUrl.searchParams.get("tipo") as TipoSolicitud | null;
+  const aplicadoParam = req.nextUrl.searchParams.get("aplicado");
+  const aplicadoEnPlanilla = aplicadoParam === null ? undefined : aplicadoParam === "true";
+  const solicitudes = await listarSolicitudes(estado ?? undefined, telefono ?? undefined, tipo ?? undefined, aplicadoEnPlanilla);
   return NextResponse.json({ solicitudes });
 }

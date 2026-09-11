@@ -44,12 +44,27 @@ enum TipoSolicitud {
   INCIDENCIA
   TAREA_NUEVA
   MODIFICACION
+  // Aprobación de una pieza de contenido (publicación) — reemplaza el paso
+  // de que el cliente edite la columna Estado de la planilla a mano. Ver
+  // src/lib/conversation.ts (rama de aprobación) y
+  // src/app/api/admin/notificar-publicacion/route.ts.
+  APROBACION_PUBLICACION
 }
 
 enum EstadoSolicitud {
   NUEVA
   EN_PROCESO
   RESUELTA
+}
+
+// Respuesta del cliente a una APROBACION_PUBLICACION. Nula hasta que
+// contesta. APROBADO = luz verde, sigue el circuito normal (Imgur +
+// calendario). CAMBIOS = el comentario del cliente queda en `descripcion`,
+// la pieza vuelve como Denegada en la planilla para que la agencia la
+// corrija y vuelva a mandar.
+enum RespuestaAprobacion {
+  APROBADO
+  CAMBIOS
 }
 
 // Todo lo que entra por el bot termina acá: un cliente nuevo pidiendo
@@ -71,9 +86,26 @@ model Solicitud {
   notaInterna  String? // para que Pablo deje comentarios sin tocar el resto
   // Cuando la Solicitud pasa a RESUELTA con este campo cargado, el bot le
   // manda este texto al cliente por WhatsApp automáticamente (ver
-  // PATCH /api/admin/solicitudes/[id]).
+  // PATCH /api/admin/solicitudes/[id]). No se usa para APROBACION_PUBLICACION
+  // (esa confirmación la manda directo el motor de conversación).
   detalleResolucion String?
   resueltoEn   DateTime?
+
+  // --- Campos propios de APROBACION_PUBLICACION ---
+  // Nombre de archivo (columna `Archivo` de la planilla del cliente) o ID de
+  // fila — lo que identifica de forma única a la pieza en cuestión.
+  archivo      String?
+  // Link (de Drive) que se le mandó al cliente para que revise la pieza.
+  linkPreview  String?
+  // Qué contestó el cliente. Nulo hasta que responde. Si es CAMBIOS, el
+  // comentario del cliente se guarda en `descripcion` (mismo campo que ya
+  // usan INCIDENCIA/TAREA_NUEVA/MODIFICACION para texto libre).
+  respuestaAprobacion RespuestaAprobacion?
+  // La revisión diaria de la agencia, después de leer una APROBACION_PUBLICACION
+  // en estado RESUELTA, actualiza la fila correspondiente en la planilla
+  // (Estado=Aprobado/Denegado) y marca esto en true para no reprocesarla.
+  aplicadoEnPlanilla Boolean @default(false)
+
   creadoEn     DateTime        @default(now())
   actualizadoEn DateTime       @updatedAt
 

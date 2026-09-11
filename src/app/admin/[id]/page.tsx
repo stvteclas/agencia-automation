@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { obtenerSolicitud, etiquetaTipo } from "@/lib/solicitudes";
-import { marcarResuelta, marcarEnProceso } from "../actions";
+import { marcarResuelta, marcarEnProceso, marcarAplicada } from "../actions";
 import { estaAutenticado } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +63,7 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
 
   const marcarResueltaConId = marcarResuelta.bind(null, solicitud.id);
   const marcarEnProcesoConId = marcarEnProceso.bind(null, solicitud.id);
+  const marcarAplicadaConId = marcarAplicada.bind(null, solicitud.id);
 
   return (
     <main className="page">
@@ -99,6 +100,35 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
               </Fragment>
             ))}
           </dl>
+        ) : solicitud.tipo === "APROBACION_PUBLICACION" ? (
+          <dl className="kv">
+            <dt>Archivo</dt>
+            <dd>{solicitud.archivo}</dd>
+            <dt>Link enviado al cliente</dt>
+            <dd>
+              {solicitud.linkPreview ? (
+                <a href={solicitud.linkPreview} target="_blank" rel="noreferrer">
+                  {solicitud.linkPreview}
+                </a>
+              ) : (
+                "-"
+              )}
+            </dd>
+            <dt>Respuesta del cliente</dt>
+            <dd>
+              {solicitud.respuestaAprobacion === "APROBADO" && "✅ Aprobado"}
+              {solicitud.respuestaAprobacion === "CAMBIOS" && "✏️ Pidió cambios"}
+              {!solicitud.respuestaAprobacion && "Esperando respuesta por WhatsApp…"}
+            </dd>
+            {solicitud.respuestaAprobacion === "CAMBIOS" && (
+              <>
+                <dt>Comentario del cliente</dt>
+                <dd>{solicitud.descripcion}</dd>
+              </>
+            )}
+            <dt>Aplicado en la planilla</dt>
+            <dd>{solicitud.aplicadoEnPlanilla ? "Sí" : "Todavía no"}</dd>
+          </dl>
         ) : (
           <dl className="kv">
             <dt>Nombre</dt>
@@ -110,7 +140,30 @@ export default async function DetalleSolicitud({ params }: { params: { id: strin
           </dl>
         )}
 
-        {solicitud.estado === "RESUELTA" ? (
+        {solicitud.tipo === "APROBACION_PUBLICACION" ? (
+          <>
+            {solicitud.estado === "NUEVA" ? (
+              <p className="subtitle">Esperando que el cliente responda por WhatsApp (aprobado o comentario) — no hace falta ninguna acción acá todavía.</p>
+            ) : solicitud.aplicadoEnPlanilla ? (
+              <div className="resolved-banner">
+                <strong>Ya está aplicado en la planilla.</strong>
+              </div>
+            ) : (
+              <>
+                <p className="subtitle" style={{ marginBottom: 12 }}>
+                  {solicitud.respuestaAprobacion === "APROBADO"
+                    ? "El cliente aprobó. Una vez que la fila de la planilla quede en Estado=Aprobado (vía el webhook de Make), marcá esto como aplicado."
+                    : "El cliente pidió cambios. Corregí la pieza según el comentario, subí la fila nueva a la planilla (Estado=Pendiente) y marcá esto como aplicado."}
+                </p>
+                <form action={marcarAplicadaConId}>
+                  <button type="submit" className="btn btn-outline">
+                    Marcar aplicado en la planilla
+                  </button>
+                </form>
+              </>
+            )}
+          </>
+        ) : solicitud.estado === "RESUELTA" ? (
           <div className="resolved-banner">
             <strong>Resuelta</strong>
             {solicitud.resueltoEn && ` el ${new Date(solicitud.resueltoEn).toLocaleString("es-AR")}`}

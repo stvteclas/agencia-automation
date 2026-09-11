@@ -1,7 +1,13 @@
 import { prisma } from "./db";
 import { sendWhatsappText } from "./whatsapp";
 import { descargarImagenDeWhatsapp, guardarLogoEnBlob } from "./whatsapp-media";
-import { crearSolicitud, listarSolicitudes, etiquetaTipo } from "./solicitudes";
+import {
+  crearSolicitud,
+  listarSolicitudes,
+  etiquetaTipo,
+  buscarAprobacionPendiente,
+  registrarRespuestaAprobacion,
+} from "./solicitudes";
 import { buscarClientePorTelefono, crearOActualizarCliente, agregarAplicativoSiNoExiste } from "./clientes";
 import { PREGUNTAS_ALTA_CLIENTE, type Respuestas } from "./preguntas-alta-cliente";
 import type { TipoSolicitud } from "@prisma/client";
@@ -47,6 +53,39 @@ function esAfirmativo(texto: string) {
 function esNegativo(texto: string) {
   const t = texto.trim().toLowerCase();
   return ["no", "n", "nop"].some((p) => t === p || t.startsWith(p + " "));
+}
+
+// Umbral de aprobación para una pieza de contenido: cualquier variante clara
+// de sí/aprobado/dale/bien. Deliberadamente angosto — cualquier otra cosa
+// (incluido "ok" pelado, un emoji, una pregunta) se trata como comentario de
+// cambios, no como aprobación, porque es más seguro equivocarse hacia "pedir
+// confirmación" que publicar algo que el cliente no aprobó de verdad (ver
+// agencia/decision-bot-aprobacion-publicaciones.md, "Ambigüedad de
+// respuesta").
+function esAprobacion(texto: string) {
+  const t = texto
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, ""); // saca acentos: "sí"→"si", "está bien"→"esta bien"
+  return [
+    "si",
+    "s",
+    "sisi",
+    "dale",
+    "aprobado",
+    "apruebo",
+    "aprobada",
+    "aprobar",
+    "perfecto",
+    "buenisimo",
+    "excelente",
+    "joya",
+    "me gusta",
+    "esta bien",
+    "esta perfecto",
+    "todo bien",
+  ].some((p) => t === p || t.startsWith(p + " ") || t.startsWith(p + "!") || t.startsWith(p + "."));
 }
 
 async function obtenerOCrearConversacion(telefono: string) {
@@ -162,6 +201,26 @@ async function responderPendientesAlDueño(telefono: string) {
 export async function manejarMensajeEntrante(telefono: string, texto: string, imagenUrl?: string) {
   if (telefono === process.env.OWNER_WHATSAPP && esComandoDePendientes(texto)) {
     await responderPendientesAlDueño(telefono);
+    return;
+  }
+
+  // Aprobación de una pieza de contenido: tiene prioridad sobre cualquier
+  // otro flujo (alta/incidencia en curso incluido) porque es una conversación
+  // aparte, en paralelo a la de Conversacion. Si hay una APROBACION_PUBLICACION
+  // sin responder para este teléfono, el próximo mensaje SIEMPRE se
+  // interpreta como la respuesta a esa pieza, no como un mensaje nuevo.
+  const aprobacionPendiente = await buscarAprobacionPendiente(telefono);
+  if (aprobacionPendiente) {
+    if (esAprobacion(texto)) {
+      await registrarRespuestaAprobacion(aprobacionPendiente.id, "APROBADO");
+      await sendWhatsappText(telefono, "¡Buenísimo, gracias! ✅ Ya queda aprobada, la programamos para publicar.");
+    } else {
+      await registrarRespuestaAprobacion(aprobacionPendiente.id, "CAMBIOS", texto);
+      await sendWhatsappText(
+        telefono,
+        "Gracias por el comentario 📝 Ya se lo paso a la agencia para el ajuste — te vuelvo a mandar la pieza corregida para que la revises de nuevo.",
+      );
+    }
     return;
   }
 

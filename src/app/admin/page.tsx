@@ -84,7 +84,9 @@ export default async function AdminPage({ searchParams }: { searchParams: { esta
                   <div className="row-title" style={{ marginTop: 6 }}>
                     {s.tipo === "ALTA_CLIENTE"
                       ? (s.respuestas as any)?.nombre_negocio ?? "(sin nombre)"
-                      : `${s.aplicativo ?? "Sin aplicativo"} — ${(s.descripcion ?? "").slice(0, 70)}`}
+                      : s.tipo === "APROBACION_PUBLICACION"
+                        ? `${s.archivo ?? "(sin archivo)"} ${s.respuestaAprobacion ? `— ${s.respuestaAprobacion === "APROBADO" ? "✅ Aprobado" : "✏️ Pidió cambios"}` : "— esperando respuesta"}`
+                        : `${s.aplicativo ?? "Sin aplicativo"} — ${(s.descripcion ?? "").slice(0, 70)}`}
                   </div>
                   <div className="row-meta">
                     {s.telefono} · {new Date(s.creadoEn).toLocaleString("es-AR")}

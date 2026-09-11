@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { resolverSolicitud, actualizarEstado } from "@/lib/solicitudes";
+import { resolverSolicitud, actualizarEstado, marcarAplicadaEnPlanilla } from "@/lib/solicitudes";
 import { ADMIN_COOKIE } from "@/lib/admin-auth";
 
 export async function login(formData: FormData) {
@@ -28,4 +28,13 @@ export async function marcarResuelta(id: string, formData: FormData) {
   const nota = String(formData.get("nota") ?? "").trim();
   await resolverSolicitud(id, detalle || undefined, nota || undefined);
   redirect("/admin");
+}
+
+// Para APROBACION_PUBLICACION: Pablo (o quien haga la revisión diaria) ya
+// trasladó la respuesta del cliente a la planilla de Sheets (Estado=Aprobado
+// o Denegado vía el webhook de Make) y confirma acá que quedó aplicada, para
+// que la próxima revisión diaria no la vuelva a traer.
+export async function marcarAplicada(id: string) {
+  await marcarAplicadaEnPlanilla(id);
+  redirect(`/admin/${id}`);
 }
