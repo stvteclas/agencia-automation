@@ -169,6 +169,50 @@ export async function crearAprobacionPublicacion(datos: {
   return solicitud;
 }
 
+// Circuito de "publicación directa" (agencia/decision-circuito-publicacion-directa.md):
+// el cliente mandó una foto suelta por WhatsApp, fuera de cualquier pregunta
+// puntual — no hay nada que aprobar porque el solo hecho de mandarla YA es la
+// aprobación. Por eso nace directo en RESUELTA/APROBADO, con fotoDirecta=true
+// para que la revisión diaria la distinga de una APROBACION_PUBLICACION del
+// circuito viejo (esas sí pasan por NUEVA esperando la respuesta del cliente).
+// NO manda ningún WhatsApp — la confirmación al cliente ("¡Recibida! 📸...")
+// la manda el motor de conversación en el momento, que es quien tiene el hilo
+// abierto.
+export async function crearFotoDirectaPublicacion(datos: { telefono: string; archivo: string; linkPreview: string }) {
+  return prisma.solicitud.create({
+    data: {
+      tipo: "APROBACION_PUBLICACION",
+      telefono: datos.telefono,
+      archivo: datos.archivo,
+      linkPreview: datos.linkPreview,
+      estado: "RESUELTA",
+      respuestaAprobacion: "APROBADO",
+      fotoDirecta: true,
+      resueltoEn: new Date(),
+    },
+  });
+}
+
+// Fotos del circuito directo que ya llegaron pero todavía no se emparejaron
+// con ninguna fila de la planilla. La revisión diaria las trae ordenadas por
+// `creadoEn` ascendente — ese orden ES el FIFO: la foto más vieja sin usar se
+// empareja con la fila "Esperando foto" más vieja del mismo cliente. Importante
+// para la tarea de verificación de paridad (ver cursor-rules/revision-diaria.mdc):
+// nunca reordenar esta lista por otro criterio ni saltear una foto para
+// "adelantar" otra, o se rompe la correspondencia FIFO en silencio.
+export async function listarFotosDirectasSinAplicar(telefono?: string) {
+  return prisma.solicitud.findMany({
+    where: {
+      tipo: "APROBACION_PUBLICACION",
+      estado: "RESUELTA",
+      fotoDirecta: true,
+      aplicadoEnPlanilla: false,
+      ...(telefono ? { telefono } : {}),
+    },
+    orderBy: { creadoEn: "asc" },
+  });
+}
+
 // El cliente ya contestó (aprobó o pidió cambios). Guarda la respuesta y,
 // si pidió cambios, avisa a Pablo por WhatsApp con el comentario (necesita
 // corregir la pieza). La confirmación al cliente la manda el motor de

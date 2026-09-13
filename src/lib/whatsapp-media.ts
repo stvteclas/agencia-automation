@@ -28,6 +28,19 @@ export async function guardarLogoEnBlob(telefono: string, campo: string, bytes: 
   return blob.url;
 }
 
+// Foto suelta que un cliente manda por WhatsApp para el circuito de
+// "publicación directa" (agencia/decision-circuito-publicacion-directa.md) —
+// no es el logo del alta, es una pieza para emparejar FIFO con la próxima
+// publicación en cola. El nombre del archivo (timestamp) es justamente lo que
+// la revisión diaria usa como orden de llegada al hacer el emparejamiento, así
+// que no cambiar este esquema de nombre sin ajustar también esa rutina.
+export async function guardarFotoPublicacionEnBlob(telefono: string, bytes: Buffer, extension = "jpg") {
+  const blob = await put(`publicaciones/${telefono}-${Date.now()}.${extension}`, bytes, {
+    access: "public",
+  });
+  return blob.url;
+}
+
 // Estructura mínima de un mensaje de imagen entrante de Meta.
 export type WhatsappInboundImage = { from: string; mediaId: string; mimeType?: string };
 

@@ -1,12 +1,13 @@
 import { prisma } from "./db";
 import { sendWhatsappText } from "./whatsapp";
-import { descargarImagenDeWhatsapp, guardarLogoEnBlob } from "./whatsapp-media";
+import { descargarImagenDeWhatsapp, guardarLogoEnBlob, guardarFotoPublicacionEnBlob } from "./whatsapp-media";
 import {
   crearSolicitud,
   listarSolicitudes,
   etiquetaTipo,
   buscarAprobacionPendiente,
   registrarRespuestaAprobacion,
+  crearFotoDirectaPublicacion,
 } from "./solicitudes";
 import { buscarClientePorTelefono, crearOActualizarCliente, agregarAplicativoSiNoExiste } from "./clientes";
 import { PREGUNTAS_ALTA_CLIENTE, type Respuestas } from "./preguntas-alta-cliente";
@@ -366,28 +367,70 @@ export async function manejarMensajeEntrante(telefono: string, texto: string, im
   }
 }
 
-// Punto de entrada para un mensaje de IMAGEN entrante, cuando la conversación
-// está parada en una pregunta de tipo "imagen".
+// Punto de entrada para un mensaje de IMAGEN entrante. Dos casos posibles:
+// (1) la conversación está parada en una pregunta de tipo "imagen" del alta
+// (ej. el logo) — sigue igual que siempre; (2) la imagen llega "suelta", sin
+// que el bot la esté esperando — antes se rechazaba siempre; ahora, si el
+// teléfono es de un Cliente conocido, se trata como una foto del circuito de
+// "publicación directa" (agencia/decision-circuito-publicacion-directa.md):
+// Romina (o cualquier cliente en ese circuito) manda la foto de una pieza y
+// eso YA es su aprobación — no hace falta que el bot le pregunte nada ni que
+// pase por ninguna revisión. La foto se guarda y la revisión diaria es quien,
+// más tarde, la empareja FIFO con la publicación en cola que le corresponda.
 export async function manejarImagenEntrante(telefono: string, mediaId: string) {
   const conversacion = await obtenerOCrearConversacion(telefono);
   const contexto = (conversacion.contextoJson as Contexto) ?? {};
-  if (conversacion.paso !== "alta_pregunta") {
-    await sendWhatsappText(telefono, "Recibí tu imagen, pero no la esperaba en este punto — seguimos con las preguntas de texto por ahora.");
-    return;
-  }
   const indiceActual = contexto.indicePregunta ?? 0;
   const preguntaActual = PREGUNTAS_ALTA_CLIENTE[indiceActual];
-  if (preguntaActual?.tipo !== "imagen") {
+  const esperandoImagenDeAlta = conversacion.paso === "alta_pregunta" && preguntaActual?.tipo === "imagen";
+
+  if (esperandoImagenDeAlta) {
+    try {
+      const bytes = await descargarImagenDeWhatsapp(mediaId);
+      const url = await guardarLogoEnBlob(telefono, preguntaActual.id, bytes);
+      await manejarMensajeEntrante(telefono, "(imagen recibida)", url);
+    } catch (err) {
+      console.error("Error procesando imagen entrante (alta):", err);
+      await sendWhatsappText(telefono, "Uy, no pude guardar la imagen. ¿Podés volver a mandarla?");
+    }
+    return;
+  }
+
+  if (conversacion.paso === "alta_pregunta") {
+    // Está en el cuestionario de alta pero la pregunta actual es de texto.
     await sendWhatsappText(telefono, "Recibí tu imagen, pero esta pregunta es de texto — contestame con palabras y seguimos.");
+    return;
+  }
+
+  // Imagen suelta, fuera de cualquier pregunta. Si ya tiene una
+  // APROBACION_PUBLICACION del circuito viejo esperando respuesta, esa
+  // respuesta se da por texto (APROBAR / comentario), no con una foto — se lo
+  // aclaramos en vez de asumir que es una foto del circuito directo.
+  const aprobacionPendiente = await buscarAprobacionPendiente(telefono);
+  if (aprobacionPendiente) {
+    await sendWhatsappText(
+      telefono,
+      "Recibí tu imagen, pero tenés una pieza esperando tu respuesta — respondé APROBAR si te gusta, o contame por texto qué cambiarías.",
+    );
+    return;
+  }
+
+  const cliente = await buscarClientePorTelefono(telefono);
+  if (!cliente) {
+    await sendWhatsappText(
+      telefono,
+      "Recibí tu imagen, pero primero necesito identificarte — contame primero si ya sos cliente nuestro.",
+    );
     return;
   }
 
   try {
     const bytes = await descargarImagenDeWhatsapp(mediaId);
-    const url = await guardarLogoEnBlob(telefono, preguntaActual.id, bytes);
-    await manejarMensajeEntrante(telefono, "(imagen recibida)", url);
+    const url = await guardarFotoPublicacionEnBlob(telefono, bytes);
+    await crearFotoDirectaPublicacion({ telefono, archivo: `directa-${Date.now()}`, linkPreview: url });
+    await sendWhatsappText(telefono, "¡Recibida! 📸 La sumamos a la cola.");
   } catch (err) {
-    console.error("Error procesando imagen entrante:", err);
-    await sendWhatsappText(telefono, "Uy, no pude guardar la imagen. ¿Podés volver a mandarla?");
+    console.error("Error procesando foto directa de publicación:", err);
+    await sendWhatsappText(telefono, "Uy, no pude guardar la foto. ¿Podés volver a mandarla?");
   }
 }

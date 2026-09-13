@@ -105,6 +105,19 @@ model Solicitud {
   // en estado RESUELTA, actualiza la fila correspondiente en la planilla
   // (Estado=Aprobado/Denegado) y marca esto en true para no reprocesarla.
   aplicadoEnPlanilla Boolean @default(false)
+  // true = esta Solicitud nació del circuito de "publicación directa"
+  // (agencia/decision-circuito-publicacion-directa.md): el cliente mandó una
+  // foto suelta por WhatsApp fuera de cualquier flujo, sin que exista todavía
+  // una fila puntual de la planilla asociada. Nace directo en RESUELTA/APROBADO
+  // (ver crearFotoDirectaPublicacion en solicitudes.ts) porque no hay pregunta
+  // que el cliente tenga que responder — el solo hecho de mandar la foto ya es
+  // la aprobación. La revisión diaria es la que, más tarde, la empareja FIFO
+  // con la fila "Esperando foto" más antigua del mismo cliente y recién ahí la
+  // marca aplicadoEnPlanilla=true. Si es false (default), es una
+  // APROBACION_PUBLICACION del circuito viejo: ya nació ligada a una fila
+  // puntual y pasó por la pregunta "Respondé APROBAR" (ver
+  // crearAprobacionPublicacion).
+  fotoDirecta  Boolean @default(false)
 
   creadoEn     DateTime        @default(now())
   actualizadoEn DateTime       @updatedAt
