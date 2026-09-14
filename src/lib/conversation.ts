@@ -8,6 +8,8 @@ import {
   buscarAprobacionPendiente,
   registrarRespuestaAprobacion,
   crearFotoDirectaPublicacion,
+  buscarUltimaFotoDirectaSinTitulo,
+  marcarTituloFoto,
 } from "./solicitudes";
 import { buscarClientePorTelefono, crearOActualizarCliente, agregarAplicativoSiNoExiste } from "./clientes";
 import { PREGUNTAS_ALTA_CLIENTE, type Respuestas } from "./preguntas-alta-cliente";
@@ -25,6 +27,10 @@ type Paso =
   | "esperando_aplicativo_conocido_pedido"
   | "esperando_descripcion_pedido"
   | "alta_pregunta"
+  // Foto directa recién guardada (circuito de publicación directa) — el
+  // próximo mensaje de texto de este teléfono se interpreta como el título
+  // de esa foto, no como un pedido nuevo (ver manejarImagenEntrante).
+  | "esperando_titulo_foto"
   | "terminado";
 
 type Contexto = {
@@ -357,6 +363,21 @@ export async function manejarMensajeEntrante(telefono: string, texto: string, im
       return;
     }
 
+    case "esperando_titulo_foto": {
+      // Se pega al título de la foto directa MÁS RECIENTE sin título de este
+      // teléfono. Si llegaron dos fotos seguidas antes de contestar ninguna,
+      // este título queda para la última — caso raro, no vale la pena pedirle
+      // a la clienta que aclare cuál, la revisión diaria igual puede reordenar
+      // a mano si hace falta.
+      const solicitud = await buscarUltimaFotoDirectaSinTitulo(telefono);
+      if (solicitud) {
+        await marcarTituloFoto(solicitud.id, texto.trim());
+      }
+      await guardarPaso(telefono, "terminado", {});
+      await sendWhatsappText(telefono, "¡Genial, gracias! Ya quedó anotada. 🙌");
+      return;
+    }
+
     case "terminado":
     default: {
       // Alguien vuelve a escribir después de haber cerrado un pedido: arranca de cero.
@@ -428,7 +449,16 @@ export async function manejarImagenEntrante(telefono: string, mediaId: string) {
     const bytes = await descargarImagenDeWhatsapp(mediaId);
     const url = await guardarFotoPublicacionEnBlob(telefono, bytes);
     await crearFotoDirectaPublicacion({ telefono, archivo: `directa-${Date.now()}`, linkPreview: url });
-    await sendWhatsappText(telefono, "¡Recibida! 📸 La sumamos a la cola.");
+    // Le preguntamos para qué publicación es ANTES de sumarla a la cola sin
+    // más datos — así la revisión diaria puede matchearla por título contra
+    // la fila "Esperando foto" que corresponda, en vez de depender solo del
+    // orden FIFO (ver tituloFoto en schema.prisma). El próximo mensaje de
+    // texto de este teléfono se interpreta como esa respuesta.
+    await guardarPaso(telefono, "esperando_titulo_foto", {});
+    await sendWhatsappText(
+      telefono,
+      "¡Recibida! 📸 ¿Para qué publicación es? Contame en pocas palabras (por ej: \"masajes 15/09\") así no se nos mezcla con otras fotos.",
+    );
   } catch (err) {
     console.error("Error procesando foto directa de publicación:", err);
     await sendWhatsappText(telefono, "Uy, no pude guardar la foto. ¿Podés volver a mandarla?");

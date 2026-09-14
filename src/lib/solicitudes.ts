@@ -213,6 +213,32 @@ export async function listarFotosDirectasSinAplicar(telefono?: string) {
   });
 }
 
+// Busca la última foto directa de este teléfono que todavía no tiene título
+// asignado — la usa conversation.ts para saber a qué Solicitud pegarle la
+// respuesta cuando la clienta contesta el nombre de la publicación (paso
+// esperando_titulo_foto). Ordena por creadoEn desc porque interesa la más
+// reciente (la que se acaba de crear), no la más vieja como en el FIFO de
+// emparejamiento.
+export async function buscarUltimaFotoDirectaSinTitulo(telefono: string) {
+  return prisma.solicitud.findFirst({
+    where: {
+      telefono,
+      tipo: "APROBACION_PUBLICACION",
+      fotoDirecta: true,
+      tituloFoto: null,
+    },
+    orderBy: { creadoEn: "desc" },
+  });
+}
+
+// Guarda el título/etiqueta que la clienta contestó para una foto directa.
+// Se usa tal cual lo escribió (sin normalizar) — la revisión diaria hace el
+// matching contra el texto de la planilla a criterio de quien la corre, no
+// hace falta un formato rígido.
+export async function marcarTituloFoto(id: string, tituloFoto: string) {
+  return prisma.solicitud.update({ where: { id }, data: { tituloFoto } });
+}
+
 // El cliente ya contestó (aprobó o pidió cambios). Guarda la respuesta y,
 // si pidió cambios, avisa a Pablo por WhatsApp con el comentario (necesita
 // corregir la pieza). La confirmación al cliente la manda el motor de

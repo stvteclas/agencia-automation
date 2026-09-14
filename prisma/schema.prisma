@@ -118,6 +118,15 @@ model Solicitud {
   // puntual y pasó por la pregunta "Respondé APROBAR" (ver
   // crearAprobacionPublicacion).
   fotoDirecta  Boolean @default(false)
+  // Título/etiqueta corta de a qué publicación corresponde esta foto directa
+  // (ej. "masajes 15/09"). Se completa de dos formas posibles: (a) el bot se
+  // lo pregunta a la clienta apenas manda la foto (ver conversation.ts, paso
+  // esperando_titulo_foto) y guarda lo que contesta tal cual, o (b) queda
+  // null si no contestó — en ese caso la revisión diaria vuelve al
+  // emparejamiento FIFO ciego de antes. Con título cargado, la revisión
+  // diaria prioriza matchear por título contra las filas "Esperando foto"
+  // de la planilla antes de caer al FIFO por fecha de creación.
+  tituloFoto   String?
 
   creadoEn     DateTime        @default(now())
   actualizadoEn DateTime       @updatedAt
