@@ -124,7 +124,21 @@ export async function GET(req: NextRequest) {
         const primerNombre = cliente.nombre.split(" ")[0];
         const mensaje = mensajeAvisoFotoPendiente(primerNombre, titulo, fechaCorta);
 
-        await sendWhatsappText(cliente.telefonoAviso, mensaje);
+        const envio = await sendWhatsappText(cliente.telefonoAviso, mensaje);
+
+        // Si Meta rechazó el envío (ej. requiere plantilla aprobada para
+        // mensajes que inicia la agencia sin que el cliente haya escrito
+        // antes en las últimas 24hs), NO se marca como avisado — si no, el
+        // cron nunca vuelve a intentarlo y el cliente se queda sin el aviso
+        // para siempre sin que nadie se entere (bug real, 15/09/2026: pasó
+        // con los 3 avisos de prueba de Romina, ninguno le llegó).
+        if (!envio.ok) {
+          resultado.error = `WhatsApp rechazó el aviso de ${fila.Fecha} ${fila.Hora} (${titulo}): ${envio.error ?? envio.status}`;
+          await notifyOwnerByWhatsapp(
+            `⚠️ No se pudo avisar a ${cliente.nombre} (${cliente.slug}) — ${fila.Fecha} ${fila.Hora}, "${titulo}": ${resultado.error}`,
+          );
+          continue;
+        }
 
         await prisma.avisoFotoPendiente.create({
           data: {

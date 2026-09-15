@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listarPendientesDePublicarHoy, crearPublicacion } from "@/lib/publicaciones";
+import { listarPendientesDePublicarHoy, crearPublicacion, listarPublicaciones } from "@/lib/publicaciones";
 import { hoyArgentina } from "@/lib/planilla-contenido";
 
 function autorizado(req: NextRequest) {
@@ -9,13 +9,18 @@ function autorizado(req: NextRequest) {
 }
 
 // GET /api/admin/publicaciones?pendientesHoy=true&key=...[&slug=...]
+// GET /api/admin/publicaciones?slug=...&key=...  (todas las filas del cliente, sin filtrar por fecha/estado)
 //
-// Lo que antes leía directo el módulo de Google Sheets de la ruta
-// `publicar_calendario` en Make (Estado=Aprobado AND Publicado vacío AND
-// Fecha=hoy). Para un cliente ya migrado a Publicacion, Make (o el cron
+// El primer modo es lo que antes leía directo el módulo de Google Sheets de
+// la ruta `publicar_calendario` en Make (Estado=Aprobado AND Publicado vacío
+// AND Fecha=hoy). Para un cliente ya migrado a Publicacion, Make (o el cron
 // propio que la reemplace, ver agencia/decision-cron-avisos-fotos-pendientes.md)
-// pega esto en vez de al Google Sheet. `slug` es opcional — sin él, trae de
-// todos los clientes.
+// pega esto en vez de al Google Sheet. `slug` es opcional ahí — sin él, trae
+// de todos los clientes.
+//
+// El segundo modo (agregado 15/09/2026) es para poder ver/ubicar filas
+// puntuales sin entrar al dashboard — ej. para reprogramar fechas a mano
+// (Pablo, por chat: "pasá la foto del 17 al 15 y la del 15 al 17").
 export async function GET(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
@@ -25,7 +30,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ publicaciones });
   }
 
-  return NextResponse.json({ error: "Falta ?pendientesHoy=true (por ahora es el único filtro soportado acá)" }, { status: 400 });
+  const slug = req.nextUrl.searchParams.get("slug");
+  if (slug) {
+    const publicaciones = await listarPublicaciones(slug);
+    return NextResponse.json({ publicaciones });
+  }
+
+  return NextResponse.json(
+    { error: "Falta ?pendientesHoy=true o ?slug=... (los únicos filtros soportados acá)" },
+    { status: 400 },
+  );
 }
 
 // POST /api/admin/publicaciones?key=...

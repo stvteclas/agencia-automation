@@ -45,7 +45,14 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  await sendWhatsappText(telefono, mensaje);
+  const envio = await sendWhatsappText(telefono, mensaje);
+
+  if (!envio.ok) {
+    return NextResponse.json(
+      { enviado: false, telefono, error: envio.error ?? `HTTP ${envio.status}` },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({ enviado: true, telefono });
 }

@@ -39,6 +39,9 @@ export default async function ContenidoPage() {
           </div>
           <h1>Contenido por cliente</h1>
         </div>
+        <Link href="/admin" className="btn btn-ghost">
+          Solicitudes
+        </Link>
       </div>
 
       {clientes.length === 0 ? (

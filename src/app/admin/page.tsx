@@ -56,11 +56,16 @@ export default async function AdminPage({ searchParams }: { searchParams: { esta
           </div>
           <h1>Solicitudes</h1>
         </div>
-        <form action={cerrarSesion}>
-          <button type="submit" className="btn btn-ghost">
-            Cerrar sesión
-          </button>
-        </form>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Link href="/admin/contenido" className="btn btn-ghost">
+            Contenido
+          </Link>
+          <form action={cerrarSesion}>
+            <button type="submit" className="btn btn-ghost">
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="tabs">
