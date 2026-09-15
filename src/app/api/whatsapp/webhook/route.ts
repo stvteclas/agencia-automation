@@ -23,6 +23,38 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
+  // Diagnóstico 15/09/2026: Meta manda acá el estado real de entrega
+  // (sent/delivered/read/failed) de cada mensaje que mandamos, pero
+  // extractInboundMessages solo mira field=messages e ignora field=statuses
+  // en silencio — así que un mensaje que Meta aceptó (200 al mandarlo) y
+  // después falló de verdad nunca se veía en ningún lado. Se loggea acá
+  // temporalmente para diagnosticar por qué los avisos de foto pendiente no
+  // le llegaban a Romina aunque el envío devolvía 200. Ver
+  // agencia/decision-cron-avisos-fotos-pendientes.md.
+  try {
+    for (const entry of body?.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const estados = change.value?.statuses;
+        if (Array.isArray(estados)) {
+          for (const estado of estados) {
+            console.log(
+              "WHATSAPP_STATUS:",
+              JSON.stringify({
+                wamid: estado.id,
+                to: estado.recipient_id,
+                status: estado.status,
+                timestamp: estado.timestamp,
+                errors: estado.errors,
+              }),
+            );
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error logueando estados de WhatsApp:", err);
+  }
+
   try {
     for (const msg of extractInboundMessages(body)) {
       await manejarMensajeEntrante(msg.from, msg.text);
