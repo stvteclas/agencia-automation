@@ -62,12 +62,18 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       continue;
     }
 
+    // Clave compuesta con `archivo` incluido (fix 15/09/2026) — dos
+    // publicaciones distintas pueden compartir fecha+hora (ver nota en
+    // schema.prisma), así que fecha+hora solas no alcanzan para identificar
+    // la fila de forma única.
+    const archivo = fila.Archivo || null;
+
     const existente = await prisma.publicacion.findUnique({
-      where: { clienteSlug_fecha_hora: { clienteSlug: params.slug, fecha, hora: fila.Hora } },
+      where: { clienteSlug_fecha_hora_archivo: { clienteSlug: params.slug, fecha, hora: fila.Hora, archivo } },
     });
 
     await prisma.publicacion.upsert({
-      where: { clienteSlug_fecha_hora: { clienteSlug: params.slug, fecha, hora: fila.Hora } },
+      where: { clienteSlug_fecha_hora_archivo: { clienteSlug: params.slug, fecha, hora: fila.Hora, archivo } },
       create: {
         clienteSlug: params.slug,
         fecha,
@@ -76,7 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         linkImagen: fila.Link_Imagen || null,
         estado,
         publicado: fila.Publicado?.toLowerCase() === "si",
-        archivo: fila.Archivo || null,
+        archivo,
         observacion: fila.Observacion || null,
         linkDrive: fila.Link_Drive || null,
         tema: fila.Tema || null,
@@ -86,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         linkImagen: fila.Link_Imagen || null,
         estado,
         publicado: fila.Publicado?.toLowerCase() === "si",
-        archivo: fila.Archivo || null,
+        archivo,
         observacion: fila.Observacion || null,
         linkDrive: fila.Link_Drive || null,
         tema: fila.Tema || null,

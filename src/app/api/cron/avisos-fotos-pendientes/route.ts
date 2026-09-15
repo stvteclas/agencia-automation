@@ -112,10 +112,20 @@ export async function GET(req: NextRequest) {
         const dias = diasHastaFecha(fecha, hoy);
         if (dias > cliente.ventanaAvisoDias) continue; // todavía falta mucho
 
-        // Ya se le avisó de esta fila puntual (fecha+hora es la clave — ver
-        // AvisoFotoPendiente en el schema). No reintentar todos los días.
+        // Ya se le avisó de esta fila puntual (fecha+hora+archivo es la
+        // clave — ver AvisoFotoPendiente en el schema, fix 15/09/2026: dos
+        // filas distintas pueden compartir fecha+hora). No reintentar todos
+        // los días.
+        const archivoFila = fila.Archivo || null;
         const yaAvisado = await prisma.avisoFotoPendiente.findUnique({
-          where: { clienteSlug_fecha_hora: { clienteSlug: cliente.slug, fecha: fila.Fecha, hora: fila.Hora } },
+          where: {
+            clienteSlug_fecha_hora_archivo: {
+              clienteSlug: cliente.slug,
+              fecha: fila.Fecha,
+              hora: fila.Hora,
+              archivo: archivoFila,
+            },
+          },
         });
         if (yaAvisado) continue;
 
@@ -131,7 +141,7 @@ export async function GET(req: NextRequest) {
             clienteSlug: cliente.slug,
             fecha: fila.Fecha,
             hora: fila.Hora,
-            archivo: fila.Archivo || null,
+            archivo: archivoFila,
             tituloUsado: titulo,
           },
         });

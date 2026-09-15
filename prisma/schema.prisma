@@ -176,9 +176,13 @@ model ClienteContenidoConfig {
 // Registro de que ya se le avisó a un cliente que le falta la foto de una
 // fila puntual de la planilla — evita que el cron le mande el mismo aviso
 // todos los días mientras la fila sigue en Esperando foto. Se identifica la
-// fila por clienteSlug+fecha+hora (no hay un ID de fila estable en Google
-// Sheets vía CSV público), que alcanza porque una fecha/hora no se repite
-// dos veces en el calendario de un mismo cliente.
+// fila por clienteSlug+fecha+hora+archivo — NO solo fecha+hora: el 15/09/2026
+// se descubrió al migrar a Romina que SÍ puede haber dos publicaciones
+// distintas en la misma fecha+hora (dos campañas cargadas al mismo slot), y
+// una unicidad de solo 3 campos las trata como la misma fila y pisa una con
+// la otra. `archivo` entra en la clave para desambiguar (Postgres trata cada
+// NULL como distinto en un unique compuesto, así que las filas sin Archivo
+// todavía no colisionan entre sí tampoco).
 model AvisoFotoPendiente {
   id          String   @id @default(cuid())
   clienteSlug String
@@ -188,7 +192,7 @@ model AvisoFotoPendiente {
   tituloUsado String // el título que se le pidió usar al cliente al responder al bot
   enviadoEn   DateTime @default(now())
 
-  @@unique([clienteSlug, fecha, hora])
+  @@unique([clienteSlug, fecha, hora, archivo])
 }
 
 enum EstadoPublicacion {
@@ -225,5 +229,12 @@ model Publicacion {
   @@index([clienteSlug])
   @@index([estado])
   @@index([fecha])
-  @@unique([clienteSlug, fecha, hora])
+  // Antes era solo [clienteSlug, fecha, hora] — se cambió el 15/09/2026 al
+  // migrar a Romina: dos publicaciones reales de su calendario
+  // (campana-horarios-viernes4.png y campana-radiofrecuencia.png, ambas
+  // 1/9 11:00) comparten fecha+hora, y con la clave vieja el importador las
+  // trató como la misma fila — la segunda pisó a la primera en silencio.
+  // `archivo` entra en la clave para desambiguar (ver nota igual en
+  // AvisoFotoPendiente sobre NULLs en un unique compuesto de Postgres).
+  @@unique([clienteSlug, fecha, hora, archivo])
 }
