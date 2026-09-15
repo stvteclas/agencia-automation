@@ -47,9 +47,15 @@ export async function POST(req: NextRequest) {
 
   const { slug, nombre, planillaSheetId, planillaGid, ventanaAvisoDias, telefonoAviso, activo } = body;
 
-  if (!slug || !nombre || !planillaSheetId || !telefonoAviso) {
+  // planillaSheetId es opcional a propósito: un cliente que ya vive en
+  // Publicacion no tiene (ni necesita) uno. Para sacarle el Sheet a un
+  // cliente que lo tenía, se manda planillaSheetId: null explícito — por
+  // eso NO puede estar en esta lista de obligatorios (bug encontrado
+  // 15/09/2026 al migrar a Romina: esta validación no dejaba nunca
+  // vaciarlo).
+  if (!slug || !nombre || !telefonoAviso) {
     return NextResponse.json(
-      { error: "Faltan campos obligatorios: slug, nombre, planillaSheetId, telefonoAviso" },
+      { error: "Faltan campos obligatorios: slug, nombre, telefonoAviso" },
       { status: 400 },
     );
   }
@@ -59,7 +65,7 @@ export async function POST(req: NextRequest) {
     create: {
       slug,
       nombre,
-      planillaSheetId,
+      planillaSheetId: planillaSheetId ?? null,
       planillaGid: planillaGid ?? "0",
       ventanaAvisoDias: ventanaAvisoDias ?? 5,
       telefonoAviso,
@@ -67,7 +73,8 @@ export async function POST(req: NextRequest) {
     },
     update: {
       nombre,
-      planillaSheetId,
+      // undefined (campo no mandado) = no tocar; null o string = actualizar.
+      ...(planillaSheetId !== undefined ? { planillaSheetId } : {}),
       ...(planillaGid !== undefined ? { planillaGid } : {}),
       ...(ventanaAvisoDias !== undefined ? { ventanaAvisoDias } : {}),
       telefonoAviso,
