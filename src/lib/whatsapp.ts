@@ -1,4 +1,4 @@
-﻿// Envío de mensajes de texto vía WhatsApp Cloud API. Igual patrón que el
+// Envío de mensajes de texto vía WhatsApp Cloud API. Igual patrón que el
 // bot de turnos-app: token permanente + phone_number_id de Meta.
 
 const GRAPH_VERSION = "v20.0";
@@ -25,7 +25,7 @@ export const PLANTILLA_AVISO_FOTO = { nombre: "aviso_foto_pendiente", idioma: "e
 export async function sendWhatsappText(
   to: string,
   body: string,
-): Promise<{ ok: boolean; status?: number; error?: string }> {
+): Promise<{ ok: boolean; status?: number; error?: string; respuesta?: string }> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_TOKEN;
   if (!phoneNumberId || !token) {
@@ -48,13 +48,18 @@ export async function sendWhatsappText(
     }),
   });
 
+  const detail = await res.text();
+
   if (!res.ok) {
-    const detail = await res.text();
     console.error("Error enviando WhatsApp:", res.status, detail);
     return { ok: false, status: res.status, error: detail };
   }
 
-  return { ok: true, status: res.status };
+  // 15/09/2026: devolvemos el body crudo (message id de Meta) también en el
+  // caso exitoso — un 200 con id no siempre significó entrega real (ver
+  // agencia/decision-cron-avisos-fotos-pendientes.md), así que este dato
+  // queda expuesto en el cron para diagnosticar sin tener que adivinar.
+  return { ok: true, status: res.status, respuesta: detail };
 }
 
 // Manda un mensaje de plantilla (HSM) aprobada por Meta — a diferencia de
@@ -67,7 +72,7 @@ export async function sendWhatsappTemplate(
   nombrePlantilla: string,
   idioma: string,
   params: string[],
-): Promise<{ ok: boolean; status?: number; error?: string }> {
+): Promise<{ ok: boolean; status?: number; error?: string; respuesta?: string }> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_TOKEN;
   if (!phoneNumberId || !token) {
@@ -99,13 +104,14 @@ export async function sendWhatsappTemplate(
     }),
   });
 
+  const detail = await res.text();
+
   if (!res.ok) {
-    const detail = await res.text();
     console.error("Error enviando plantilla de WhatsApp:", res.status, detail);
     return { ok: false, status: res.status, error: detail };
   }
 
-  return { ok: true, status: res.status };
+  return { ok: true, status: res.status, respuesta: detail };
 }
 
 // Envío del aviso "falta esta foto": intenta primero la plantilla aprobada
@@ -122,7 +128,7 @@ export async function enviarAvisoFotoPendiente(
   fechaCorta: string,
   titulo: string,
   mensajeTextoLibre: string,
-): Promise<{ ok: boolean; status?: number; error?: string; via: "plantilla" | "texto_libre" }> {
+): Promise<{ ok: boolean; status?: number; error?: string; respuesta?: string; via: "plantilla" | "texto_libre" }> {
   const porPlantilla = await sendWhatsappTemplate(telefono, PLANTILLA_AVISO_FOTO.nombre, PLANTILLA_AVISO_FOTO.idioma, [
     primerNombre,
     fechaCorta,

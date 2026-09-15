@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { sendWhatsappText } from "@/lib/whatsapp";
+import { enviarAvisoFotoPendiente } from "@/lib/whatsapp";
 import { notifyOwnerByWhatsapp } from "@/lib/solicitudes";
 import {
   fetchFilasPlanilla,
@@ -75,7 +75,7 @@ function autorizado(req: NextRequest) {
 type ResultadoCliente = {
   slug: string;
   nombre: string;
-  avisosEnviados: { fecha: string; hora: string; titulo: string }[];
+  avisosEnviados: { fecha: string; hora: string; titulo: string; via: string; metaStatus?: number; metaRespuesta?: string }[];
   error?: string;
 };
 
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
         const primerNombre = cliente.nombre.split(" ")[0];
         const mensaje = mensajeAvisoFotoPendiente(primerNombre, titulo, fechaCorta);
 
-        const envio = await sendWhatsappText(cliente.telefonoAviso, mensaje);
+        const envio = await enviarAvisoFotoPendiente(cliente.telefonoAviso, primerNombre, fechaCorta, titulo, mensaje);
 
         // Si Meta rechazó el envío (ej. requiere plantilla aprobada para
         // mensajes que inicia la agencia sin que el cliente haya escrito
@@ -150,7 +150,14 @@ export async function GET(req: NextRequest) {
           },
         });
 
-        resultado.avisosEnviados.push({ fecha: fila.Fecha, hora: fila.Hora, titulo });
+        resultado.avisosEnviados.push({
+          fecha: fila.Fecha,
+          hora: fila.Hora,
+          titulo,
+          via: envio.via,
+          metaStatus: envio.status,
+          metaRespuesta: envio.respuesta,
+        });
       }
     } catch (err) {
       resultado.error = err instanceof Error ? err.message : String(err);
