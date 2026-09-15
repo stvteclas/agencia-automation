@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/avisos-fotos-pendientes",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}

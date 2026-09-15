@@ -134,3 +134,96 @@ model Solicitud {
   @@index([estado])
   @@index([tipo])
 }
+
+// Configuración por cliente para el cron de "avisos de foto pendiente"
+// (agencia/decision-cron-avisos-fotos-pendientes.md). Antes esto era Claude
+// leyendo la planilla a mano en la revisión diaria de cada cliente y
+// mandando el WhatsApp él mismo; se movió a un cron propio del backend
+// (sin agente en el medio) para que escale a muchos clientes sin depender
+// de una sesión de Claude por cada aviso. Una fila por cliente que use el
+// circuito de "publicación directa" (agencia/decision-circuito-publicacion-directa.md).
+model ClienteContenidoConfig {
+  id               String   @id @default(cuid())
+  // Identificador corto y estable del cliente (no cambia aunque cambie de
+  // nombre comercial) — ej. "romina-balquinta". Se usa como clave en
+  // AvisoFotoPendiente y en Publicacion.clienteSlug.
+  slug             String   @unique
+  nombre           String
+  // ID del Google Sheet (el que aparece en la URL) — SOLO para clientes que
+  // todavía no migraron a la tabla Publicacion (ver decisión de
+  // agencia/decision-cron-avisos-fotos-pendientes.md, sección "de Sheets a
+  // base propia"). Null = este cliente ya vive 100% en Publicacion, no hace
+  // falta pedirle ni compartir ninguna planilla de Google. Tiene que estar
+  // compartido "Cualquiera con el enlace - Lector" para que el cron lo pueda
+  // leer sin credenciales de Google, mientras siga en uso.
+  planillaSheetId  String?
+  // gid de la pestaña de publicaciones (no la de feedback) — "0" en RB
+  // Estética hoy. Sin efecto si planillaSheetId es null.
+  planillaGid      String   @default("0")
+  // A cuántos días de la fecha de publicación se le manda el aviso de "falta
+  // esta foto" (paso 0.ter.a de cursor-rules/revision-diaria.mdc — ahí eran
+  // ~5 días fijos para todos; ahora es configurable por cliente).
+  ventanaAvisoDias Int      @default(5)
+  // Número de WhatsApp al que se le manda el aviso (el personal de la
+  // clienta, no el de trabajo — ver la nota de loop bot-contra-bot en
+  // agencia/decision-filtro-antiloop-bots-clientes.md).
+  telefonoAviso    String
+  activo           Boolean  @default(true)
+  creadoEn         DateTime @default(now())
+  actualizadoEn    DateTime @updatedAt
+}
+
+// Registro de que ya se le avisó a un cliente que le falta la foto de una
+// fila puntual de la planilla — evita que el cron le mande el mismo aviso
+// todos los días mientras la fila sigue en Esperando foto. Se identifica la
+// fila por clienteSlug+fecha+hora (no hay un ID de fila estable en Google
+// Sheets vía CSV público), que alcanza porque una fecha/hora no se repite
+// dos veces en el calendario de un mismo cliente.
+model AvisoFotoPendiente {
+  id          String   @id @default(cuid())
+  clienteSlug String
+  fecha       String // tal cual viene la columna Fecha de la planilla, ej. "15/9/2026"
+  hora        String
+  archivo     String?
+  tituloUsado String // el título que se le pidió usar al cliente al responder al bot
+  enviadoEn   DateTime @default(now())
+
+  @@unique([clienteSlug, fecha, hora])
+}
+
+enum EstadoPublicacion {
+  ESPERANDO_FOTO
+  PENDIENTE
+  APROBADO
+  DENEGADO
+}
+
+// Reemplazo de la fila de Google Sheets — vive en la misma base que el
+// resto de la app, así un cliente nuevo no necesita que se le comparta ni
+// se le explique una planilla (ver agencia/decision-cron-avisos-fotos-pendientes.md,
+// sección "de Sheets a base propia"). Un cliente puede tener muchas filas;
+// se identifica por clienteSlug (no hay FK formal a ClienteContenidoConfig
+// para no obligar a que exista una config de cron para poder cargar
+// contenido — algunos clientes pueden no usar el circuito de foto directa).
+model Publicacion {
+  id          String            @id @default(cuid())
+  clienteSlug String
+  fecha       DateTime // solo la parte de fecha importa — hora va aparte en `hora`
+  hora        String // "HH:MM", hora de salida en Instagram/Facebook
+  texto       String
+  linkImagen  String?
+  red         String? // vacío = todas las redes configuradas del cliente
+  estado      EstadoPublicacion @default(PENDIENTE)
+  publicado   Boolean           @default(false)
+  archivo     String?
+  observacion String?
+  linkDrive   String?
+  tema        String? // título corto para el matching de foto directa — ver buildTituloFoto
+  creadoEn    DateTime          @default(now())
+  actualizadoEn DateTime        @updatedAt
+
+  @@index([clienteSlug])
+  @@index([estado])
+  @@index([fecha])
+  @@unique([clienteSlug, fecha, hora])
+}

@@ -254,6 +254,30 @@ h1 {
   background: var(--success-soft);
 }
 
+/* Estados de Publicacion (dashboard /admin/contenido) — mismo lenguaje
+   visual que los badges de Solicitud arriba. El <select> de estado usa esta
+   clase para que el color cambie apenas se elige otra opción. */
+.badge-esperando_foto {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid transparent;
+}
+.badge-pendiente {
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.badge-aprobado {
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid transparent;
+}
+.badge-denegado {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid transparent;
+}
+
 .badge-tipo {
   font-size: 11px;
   font-weight: 600;
