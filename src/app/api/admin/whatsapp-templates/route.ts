@@ -46,6 +46,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Faltan WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID" }, { status: 500 });
   }
 
+  // GET /api/admin/whatsapp-templates?numero=true&key=...
+  // Diagnóstico rápido (15/09/2026): confirma a qué número de WhatsApp real
+  // apunta WHATSAPP_PHONE_NUMBER_ID — útil para detectar un id desactualizado
+  // en Vercel sin tener que exponer la variable en el panel.
+  if (req.nextUrl.searchParams.get("numero") === "true") {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,code_verification_status`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const data = await res.json();
+    return NextResponse.json({ phoneNumberIdConfigurado: phoneNumberId, respuestaMeta: data }, { status: res.status });
+  }
+
   try {
     const wabaId = await obtenerWabaId(token, phoneNumberId);
 
