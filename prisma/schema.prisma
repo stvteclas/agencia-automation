@@ -237,3 +237,23 @@ model Publicacion {
   // impacto real al colapsarlas).
   @@unique([clienteSlug, fecha, hora])
 }
+
+// Auditoría estándar de llamadas al MCP propio (src/lib/mcp-tools.ts) — el
+// equivalente al rastro que antes quedaba solo en el historial del browser
+// de quien navegaba las URLs de /api/admin/* a mano. Cada tool del Grupo A
+// se registra acá automáticamente vía el wrapper `tool()` de mcp-tools.ts;
+// ninguna tool tiene que llamar esto por su cuenta. Ver
+// agencia/decision-mcp-bot-atencion-agencia.md, "Logging/auditoría".
+model McpToolLog {
+  id          String   @id @default(cuid())
+  tool        String // nombre de la tool, ej. "listar_solicitudes"
+  argsJson    String // input de la tool, JSON truncado (ver TRUNCADO_MAX en mcp-log.ts) — nunca incluye MCP_API_KEY/ADMIN_API_KEY, esas no viajan como argumento de ninguna tool
+  ok          Boolean // false si la tool tiró una excepción
+  errorMsg    String? // solo si ok=false
+  resumenJson String? // resumen truncado del resultado (para no guardar payloads enormes)
+  duracionMs  Int?
+  creadoEn    DateTime @default(now())
+
+  @@index([tool])
+  @@index([creadoEn])
+}
